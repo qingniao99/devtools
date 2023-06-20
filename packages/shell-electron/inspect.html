@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';" />
+  <title>Vue Developer Tools</title>
+  <style>
+    #body,
+    #intro {
+      display: flex;
+      height: 100%;
+      flex-direction: column;
+      /* position: absolute; */
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      margin: 0;
+      padding: 0;
+    }
+
+    #intro {
+      z-index: 100000;
+      justify-content: center;
+      align-items: center;
+      background-color: #fff;
+      text-align: center;
+      font-family: Roboto, sans-serif;
+      color: #484848;
+    }
+
+    #intro.hidden {
+      display: none;
+    }
+
+    #intro .logo {
+      width: 120px;
+    }
+
+    #intro .title {
+      margin: 30px 0;
+      font-size: 26px;
+    }
+
+    #intro .content {
+      width: 395px;
+      font-size: 18px;
+      line-height: 45px;
+      text-align: center;
+    }
+
+    #intro .content-row {
+      display: flex;
+      align-items: center;
+    }
+
+    #intro .content-row label {
+      flex-basis: 35px;
+      text-align: right;
+    }
+
+    #intro .content-row input {
+      flex: 1;
+      height: 32px;
+      padding: 0 10px;
+      margin-left: 10px;
+      border: 1px solid #cacaca;
+      border-radius: 2px;
+      text-align: center;
+      font-size: 14px;
+    }
+    #body {
+        flex-direction: row;
+    }
+    #app, #iframewrap,.app {
+        flex: 1;
+    }
+    #iframe {
+      width: 100%;
+      height: calc(100% - 30px);
+    }
+  </style>
+</head>
+<body>
+  <div id="body">
+    <div id="iframewrap"><button id="rese">点我强行重制</button><iframe id="iframe" src="bakkweb/index.html"></iframe></div>
+    <div id="app">
+      <div id="intro">
+        <img src="icons/128.png" alt="" class="logo">
+        <h2 class="title">
+          Waiting for connection...
+        </h2>
+        <div class="content">
+          <div class="content-row">
+            <label for="script-localhost">Add</label>
+            <input type="text" id="script-localhost">
+          </div>
+          <div class="content-row">
+            <label for="script-byip">Or</label>
+            <input type="text" id="script-byip">
+          </div>
+          to the top of the page you want to debug.
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const ipcRenderer = require('electron').ipcRenderer
+
+    const port = process.env.PORT || 8098
+    const localIp = require('ip').address();
+    const $ = document.querySelector.bind(document)
+
+    const $localhost = $('#script-localhost')
+    const $byIp = $('#script-byip')
+    const $iframe = $('#iframe')
+    const $rese = $('#rese');
+    let tempUrl
+
+    $localhost.value = '<' + 'script src="http://localhost:' + port + '"><' + '/script>'
+    $byIp.value = '<' + 'script src="http://' + localIp + ':' + port + '"><' + '/script>'
+
+    function selectAll () {
+      this.selectionStart = 0
+      this.selectionEnd = this.value.length
+    }
+
+    $localhost.onclick = selectAll
+    $byIp.onclick = selectAll
+    $rese.onclick = () => {
+      ipcRenderer.send('get-msg')
+    }
+    function getTargetWebViewDevtoolsFrontendUrl(port) {
+      return fetch(`http://127.0.0.1:${port}/json`, { cache: "no-store" })
+        .then(res => res.json())
+        .then(res => {
+          // const wsurl = `http://127.0.0.1:9223/devtools/inspector.html?${res[0].webSocketDebuggerUrl}`
+          const wsurl = res && res[0] && res[0].devtoolsFrontendUrl;
+          console.log(wsurl,tempUrl, 112333)
+          if (tempUrl !== wsurl) {
+            tempUrl = wsurl
+            $iframe.setAttribute('src', tempUrl || 'bakkweb/index.html')
+          }
+        }).catch((e) => {
+          console.log(e)
+          // $iframe.setAttribute('src', 'web/index.html?a=error')
+        }).finally(() => {
+          // $iframe.contentWindow.location.reload()
+        });
+    }
+    function notify(title="请注意", body, cb) {
+      return new window.Notification(title, { body: body }).onclick = () => { cb && cb() }
+    }
+    // ipcRenderer.send('get-msg', '666')
+    ipcRenderer.on('list', (e,port) => {
+      window.timer && clearInterval(window.timer);
+      window.timer = setInterval(() => {
+        getTargetWebViewDevtoolsFrontendUrl(port)
+      }, 5000)
+      getTargetWebViewDevtoolsFrontendUrl(port)
+    })
+    ipcRenderer.on('list2', (e,port) => {
+      if(tempUrl && tempUrl.includes('bakkweb')) {
+        window.timer && clearInterval(window.timer);
+        window.timer = setInterval(() => {
+          getTargetWebViewDevtoolsFrontendUrl(port)
+        }, 5000)
+        getTargetWebViewDevtoolsFrontendUrl(port)
+        } else {
+        $iframe.contentWindow.location.reload()
+      }
+    })
+    ipcRenderer.on('notify', (e,ob) => {
+      notify(ob.title, ob.body, ob.cb)
+    })
+  </script>
+  <script src="build/devtools.js"></script>
+</body>
+</html>
